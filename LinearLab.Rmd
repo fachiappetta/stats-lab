@@ -1,0 +1,307 @@
+---
+title: "Simple Linear Regression Lab"
+author: "Francesca Chiappetta"
+date: "9/29/2021"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+
+#Summary Statistics
+
+```{r libraries, message=FALSE, echo = FALSE, results = FALSE, warning=FALSE}
+library(ggplot2) #make plots
+library(dvmisc)
+library(scales)
+library(glue) #glue together text and variables
+library(ggthemes)
+library(papeR)
+library(moments) #package for skewness
+library(knitr) #package for making tables (kable)
+library(tidyverse) #multiple packages for data wrangling
+library(gt) # a package to make tables
+library(reshape) # a package to melt data
+library(ggpubr) #a package to plot graphs together
+```
+
+```{r import, echo=FALSE, message=FALSE, results=FALSE,warning=FALSE}
+fews_df <-read.csv("FEWS_Index.csv")
+glimpse(fews_df)
+
+#check for NA
+cbind(
+   lapply(
+     lapply(fews_df, is.na)
+     , sum)
+   )
+#set number of sigfigs (10 sigfigs so we will do 11)
+options(digits = 11)
+```
+
+```{r filter variables, echo=FALSE, message=FALSE, results=FALSE,warning=FALSE}
+#filter out variables of interest
+co2_urbangrowth_df <- fews_df %>% select(ï..Country, co2,urban_growth)
+# rename column
+colnames(co2_urbangrowth_df) <- c("Country","CO2.Emissions","Urban.Population.Growth")
+
+length(co2_urbangrowth_df$Country) #check length
+#get rid of extra rows at the end
+co2_urbangrowth_df<- co2_urbangrowth_df[!co2_urbangrowth_df$Country=="",]
+
+co2_urbangrowth_df <- drop_na(co2_urbangrowth_df)
+length(co2_urbangrowth_df$Country) #check length
+```
+
+
+```{r summary , echo=FALSE, message=FALSE, results=FALSE,warning=FALSE}
+#melt the data for table making purposes
+co2_urbangrowth_df_long <- melt(data = co2_urbangrowth_df, id.vars= "Country")
+length(co2_urbangrowth_df_long$Country) #check length
+```
+
+```{r VALLEY summary, echo = FALSE, results = FALSE, message=FALSE, warning=FALSE}
+#VALLEY: summary table
+
+summary_co2_urbangrowth_df_long <- co2_urbangrowth_df_long %>% 
+  dplyr::group_by(variable) %>%
+  select(value) %>%
+  dplyr::summarize(
+                    length_value =length(value),
+                    mean_value=mean(value),
+                    median_value=median(value),
+                    min_value=min(value),
+                    max_value=max(value),
+                    sd_value=sd(value),
+                    skew_value=skewness(value),
+                    )
+
+summary_co2_urbangrowth_df_long
+```
+
+```{r gt summary table,echo=FALSE, message=FALSE, results=TRUE, warning=FALSE}
+source <- "Data Source: World Bank"
+
+#VALLEY: make gt summary box
+summary_co2_urbangrowth_df_long %>%
+gt() %>%
+  tab_header(
+    title = md("Summary Statistics of CO2 emissions and Urban Population Growth"),
+    subtitle = "CO2 in metric tons per capita, Urban Population Growth in annual percentage") %>% tab_source_note(
+    source_note = source) %>%
+  
+ 
+  fmt_passthrough (columns=c(variable)) %>%
+  fmt_number(columns = c(length_value), decimals = 0) %>%
+  fmt_number(columns = c(mean_value), decimals= 9) %>%
+  fmt_number(columns = c(median_value), decimals = 9) %>%
+  fmt_number(columns = c(min_value), decimals = 9) %>%
+  fmt_number(columns = c(max_value), decimals = 8) %>%
+  fmt_number(columns = c(sd_value), decimals = 9) %>%
+  fmt_number(columns = c(skew_value), decimals = 9) %>%
+
+cols_label(
+    variable="Variable",
+    length_value = "Observations",
+    mean_value = "Mean",
+    median_value = "Median",
+    min_value = "Minimum",
+    max_value = "Maximum",
+    sd_value = "SD",
+    skew_value = "Skewness")
+  
+```
+
+
+
+```{r coorelation coeff, echo=FALSE, message=FALSE, results=FALSE,warning=FALSE}
+correlation_coeff <- cor(co2_urbangrowth_df$CO2.Emissions, co2_urbangrowth_df$Urban.Population.Growth)
+correlation_coeff
+```
+```{r log the data, echo=FALSE, message=FALSE, results=FALSE,warning=FALSE}
+#log CO2 emissions
+co2_urbangrowth_df$CO2.Emissions.Logged<-log(co2_urbangrowth_df$CO2.Emissions)
+
+#log urban growth
+#since there are negative values we need to deal with that because they cant be logged
+#make a column that records the original sign
+co2_urbangrowth_df$Urban.Population.Growth.Sign <- ifelse(sign(co2_urbangrowth_df$Urban.Population.Growth) == 1, 1, -1)
+#take the log of the absolute value of the urban growth column and make it into a new column called urban growth logged
+co2_urbangrowth_df$Urban.Population.Growth.Logged <- log(abs(co2_urbangrowth_df$Urban.Population.Growth))
+#If the urban pop growth sign is -1, then multiply the value by -1. If it is not -1 then keep it the same value
+co2_urbangrowth_df$Urban.Population.Growth.Logged <- ifelse(co2_urbangrowth_df$Urban.Population.Growth.Sign == -1, co2_urbangrowth_df$Urban.Population.Growth.Logged*-1,co2_urbangrowth_df$Urban.Population.Growth.Logged)
+
+```
+
+Data of CO2 emissions in metric tons per capita and Urban Population Growth as annual percentage was taken from `r summary_co2_urbangrowth_df_long$length_value[1]` countries was taken for. The range for CO2 emissions is `r summary_co2_urbangrowth_df_long$min_value[1]` to `r summary_co2_urbangrowth_df_long$max_value[1]` and the range for urban population growth is `r summary_co2_urbangrowth_df_long$min_value[2]` to `r summary_co2_urbangrowth_df_long$max_value[2]`. The CO2 emission data have a strong positive skew of ` r summary_co2_urbangrowth_df_long$skew_value[1]`, and a $\bar{x}$ of ` r summary_co2_urbangrowth_df_long$mean_value[1]` that is larger than the median, ` r summary_co2_urbangrowth_df_long$median_value[1]` and a standard deviation of ` r summary_co2_urbangrowth_df_long$sd_value[1]`. The urban population growth data have a very small positive skew of ` r summary_co2_urbangrowth_df_long$skew_value[2]` a $\bar{x}$ of ` r summary_co2_urbangrowth_df_long$mean_value[2]` that is larger than the median, ` r summary_co2_urbangrowth_df_long$median_value[2]` and a standard deviation of ` r summary_co2_urbangrowth_df_long$sd_value[2]`. The correlation coefficient is used to measure how strong the relationship is between CO2 emissions and urban population growth. The correlation coefficient of `r correlation_coeff` means that the two variables have a weak, negative linear relationship. 
+
+
+#Histograms
+
+```{r co2 observations, echo=FALSE, message=FALSE, results=FALSE,warning=FALSE}
+#check number of observations
+observations <- length(co2_urbangrowth_df$CO2.Emissions)
+observations
+length(co2_urbangrowth_df$CO2.Emissions.Logged)
+length(co2_urbangrowth_df$Urban.Population.Growth)
+length(co2_urbangrowth_df$Urban.Population.Growth.Logged)
+
+
+
+observation_subtitle <- glue("Number of observations: {observations}")
+
+
+```
+
+```{r co2 histogram , echo=FALSE, message=FALSE, results=FALSE,warning=FALSE,fig.show='hide', fig.height=5, fig.width=7}
+x<-ggplot(co2_urbangrowth_df, aes(x=CO2.Emissions))+
+  geom_histogram(col="lightblue4", bins = 15, fill = "lightblue") +
+  labs(x="CO2 Emissions (metric ton per capita)", title="Histogram of CO2 emissions per Country", subtitle =
+         observation_subtitle) + theme(plot.title = element_text(size = 12)) +
+      theme_classic() +
+  geom_vline(xintercept = mean(co2_urbangrowth_df$CO2.Emissions), col = "red") + geom_vline(xintercept = median(co2_urbangrowth_df$CO2.Emissions), col = "purple") 
+x
+```
+```{r logCO2.histogram, echo=FALSE, message=FALSE, results=FALSE, fig.show='hide', warning=FALSE}
+
+
+#histogram of logged CO2 emissions
+y<-ggplot(co2_urbangrowth_df, aes(x=CO2.Emissions.Logged))+
+  geom_histogram(col="lightblue4", bins = 15, fill = "lightblue") +
+  labs(x="Logged CO2 Emissions (metric ton per capita)", title="Histogram of Logged CO2 Emissions per Country", subtitle =
+         observation_subtitle) + theme(plot.title = element_text(size = 12)) +
+      theme_classic() +
+  geom_vline(xintercept = mean(co2_urbangrowth_df$CO2.Emissions.Logged), col = "red") + geom_vline(xintercept = median(co2_urbangrowth_df$CO2.Emissions.Logged), col = "purple") 
+y
+```
+
+```{r pop histogram ,echo=FALSE, message=FALSE, results=FALSE,warning=FALSE, fig.show='hide', fig.height=5, fig.width=7}
+z<-ggplot(co2_urbangrowth_df, aes(x= Urban.Population.Growth))+
+  geom_histogram(col="lightblue4", bins = 15, fill = "lightblue") +
+  labs(x="Annual Population Growth (annual percentage)", title="Histogram of Annual Population Growth per Country", subtitle =
+         observation_subtitle) + theme(plot.title = element_text(size = 12)) +
+   theme_classic() +
+  geom_vline(xintercept = mean(co2_urbangrowth_df$Urban.Population.Growth), col = "red") + geom_vline(xintercept = median(co2_urbangrowth_df$Urban.Population.Growth), col = "purple") 
+
+z
+```
+```{r, fig.height=8, fig.width=10, echo=FALSE, message=FALSE, results=TRUE,warning=FALSE}
+figure <- ggarrange(x,y, z,
+          ncol = 2, nrow = 2)
+
+#create a title and subtitle
+title <- expression(atop(bold("Histograms"), scriptstyle("Mean shown in red and median shown in purple")))
+
+
+#annotate the figure
+annotate_figure(figure,
+                top = text_grob(title, color = "Black", face = "bold", size = 14),
+
+                bottom = text_grob(source, color = "Black",
+                                   hjust = 1, x = 1, face = "italic", size = 10),
+                )
+```
+
+#Scatterplots
+
+
+```{r pop.CO2 scatter.plot, echo=FALSE, message=FALSE, results=FALSE,warning=FALSE, fig.show='hide'}
+a <- ggplot(data=co2_urbangrowth_df, aes(x = Urban.Population.Growth, y = CO2.Emissions)) +
+  geom_point(alpha=0.5, position = "jitter", color = "darkblue") +
+  stat_smooth(method=lm) +
+  labs(x="Urban Population Growth (annual percentage)", y="CO2 Emissions (metric ton per capita)", title = "CO2 Emissions vs. Urban Population Growth")
+a
+```
+
+```{r pop.log(CO2) scatter.plot, echo=FALSE, message=FALSE, results=FALSE,warning=FALSE, fig.show='hide'}
+b <- ggplot(data=co2_urbangrowth_df, aes(x = Urban.Population.Growth, y = CO2.Emissions.Logged)) +
+  geom_point(alpha=0.5, position = "jitter", color = "darkblue") +
+   stat_smooth(method=lm) +
+  labs(x="Urban Population Growth (annual percentage)", y="Logged CO2 Emissions (metric ton per capita)", title = "Logged CO2 Emissions vs. Urban Population Growth")
+b
+```
+```{r log(pop).CO2 scatter.plot, echo=FALSE, message=FALSE, results=FALSE,warning=FALSE, fig.show='hide'}
+c <- ggplot(data=co2_urbangrowth_df, aes(x = Urban.Population.Growth.Logged, y = CO2.Emissions)) +
+  geom_point(alpha=0.5, position = "jitter", color = "darkblue") +
+   stat_smooth(method=lm) +
+  labs(x="Logged Urban Population Growth (annual percentage)", y="CO2 Emissions (metric ton per capita)", title = "CO2 Emissions vs. Logged Urban Population Growth")
+c
+```
+```{r log(pop).pop(CO2) scatter.plot, echo=FALSE, message=FALSE, results=FALSE, warning=FALSE, fig.show='hide'}
+d <- ggplot(data=co2_urbangrowth_df, aes(x = Urban.Population.Growth.Logged, y = CO2.Emissions.Logged)) +
+  geom_point(alpha=0.5, position = "jitter", color = "darkblue") +
+   stat_smooth(method=lm) +
+  labs(x="Logged Urban Population Growth (annual percentage)", y="Logged CO2 Emissions (metric ton per capita)", title = "Logged CO2 Emissions vs. Logged Urban \nPopulation Growth")
+d
+```
+```{r scatterplots, fig.height=8, fig.width=10, echo=FALSE, message=FALSE, results=TRUE,warning=FALSE}
+#combine scatter plots on one figure
+figure <- ggarrange(a, b, c, d,
+          ncol = 2, nrow = 2)
+
+#create a title and subtitle
+title <- expression(atop(bold("Scatter Plots of CO2 Emissions vs. Urban Population Growth"), scriptstyle("Number of Observations: 162")))
+
+#annotate the figure
+annotate_figure(figure,
+                top = text_grob(title, color = "Black", face = "bold", size = 14),
+
+                bottom = text_grob(source, color = "Black",
+                                   hjust = 1, x = 1, face = "italic", size = 10),
+                )
+```
+Urban Population Growth is the **explanatory variable** and CO2 emissions is the **response variable** because I am interested to know whether an increase in urban population growth shows a positive linear relationship with CO2 emissions. There is a weak linear relationship between the two variables. log-linear graph displays the strongest linear relationship, with the data points more evenly scattered compared to the linear-linear, linear-log, and log-log scatter plots. The log-linear scatter plot shows a negative linear relationship.
+
+
+#Linear Regression
+
+```{r linearmodel, echo=FALSE, message=FALSE, results=FALSE,warning=FALSE}
+lm_logCO2_pop <- lm(CO2.Emissions.Logged ~ Urban.Population.Growth , data = co2_urbangrowth_df)
+summary(lm_logCO2_pop)
+```
+Only the dependent/response variable is log-transformed. Exponentiate the coefficient, subtract one from this number, and multiply by 100. This gives the percent increase (or decrease) in the response for every one-unit increase in the independent variable. Example: the coefficient is 0.198. (exp(0.198) – 1) * 100 = 21.9. For every one-unit increase in the independent variable, our dependent variable increases by about 22%.
+
+
+```{r b1.b0, echo=FALSE, message=FALSE, results=FALSE,warning=FALSE}
+B1 <- ((exp(lm_logCO2_pop$coefficients[2])-1)*100)
+B0 <- (lm_logCO2_pop$coefficients[1])
+```
+
+y = `r B1` x + `r B0`
+
+A one-unit increase in the explanatory variable (independent variable), Urban Population Growth (annual percentage), decreases the response variable (dependent variable), CO2 Emissions (metric tons per capita), by `r abs(B1)`%.
+
+The r-squared is how well the regression model fits the observed data and generally, a higher r-squared indicates a better fit for the model. The r-squared value of `r summary(lm_logCO2_pop)$r.squared` reveals that `r (summary(lm_logCO2_pop)$r.squared)*100` % of the data fit the regression model. Although a "good" R square value depends on many factors, this R square value suggests that the linear model does not fit our data very well.
+
+#Residual vs. Fitted Plots 
+
+
+
+```{r, fig.height = 7, fig.width=7, res.vs.fit, echo=FALSE, message=FALSE,warning=FALSE}
+
+par(mfrow = c(2,2))
+plot(lm_logCO2_pop, which = c(1,2))
+```
+
+## Run a residual vs fitted plot on the regression you ran above. Discuss the underlying assumptions of an OLS model and whether you think they are met in this context. (10 points). 
+
+
+**1.The model is linear in parameters.**
+The low R squared values suggests that this assumption is false, and the model does not fit the data.
+
+**2. We have a random sample of size n (xi, yi), where i =1,2,3,4…n**
+This assumption requires that there is a random sampling of observations. FRANKIE CHECK ON THE DOCUMENTATION HERE
+
+**3.  The conditional mean should be zero, E(u|x) = 0**
+The curvature in the plot of residuals vs predicted Y shows us that the average error is not zero everywhere, suggesting non linearity and that the model does not fit the data.
+
+**4. Sample outcomes of x are not all the same value.**
+Our sample outcomes of x are not all the same value, so this assumption holds true.
+
+**5. The error u has the same variance given any value of the explanatory variable: var(u|x) = σ2**
+The plot of residuals against the fitted data show heteroskedasticity, meaning that the u does not have the same variances give any value of the explanatory variable. This assumption is violated.
+
+**6. Errors are normally distributed**
+The second plot (normal Q-Q) is a normal probability plot and will give a straight line if the errors are distributed normally. The QQ plot of the residuals shows skewed residuals, meaning that our errors are not normally distributed and violate this assumption.
+

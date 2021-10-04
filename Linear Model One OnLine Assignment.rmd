@@ -1,0 +1,127 @@
+---
+title: "Linear Model 1 OnLine Assignment"
+author: "Francesca Chiappetta"
+date: "9/27/2021"
+output:
+  html_document: default
+---
+
+### Linear Model 1: OnLine Assignment
+
+Using the same EPI dataset as the Linear Model tutorial, please answer the questions below. You should upload your knitted html to Sakai/Asisgnments. You do not need to hide your R. 
+
+1. Choose either the AIR.current or H20.current index as your response variable.
+2. Use population density (persons per km2) as your explanatory variable.
+
+
+### Answer the following questions 
+```{r libraries, messages=FALSE, results= FALSE, warning=FALSE}
+library(ggplot2)
+library(dplyr)
+library(glue)
+```
+
+```{r import}
+yale.df<-read.csv("yaleEPI2018.csv")
+glimpse(yale.df)
+
+#check for NA
+cbind(
+   lapply(
+     lapply(yale.df, is.na)
+     , sum)
+   )
+```
+
+#### a.	  Hypothesize a relationship between your variables. Include the null and alternative hypothesis. (2 points)
+Ho: $\beta_1$ = 0
+Ha: $\beta_1$ $\neq$ 0
+
+The null hypothesis states that the coefficient $\beta_1$ (the slope) is equal to zero. In other words, there is no association between the predictor variable, PopDensity, and the response variable, AIR.current. The alternative hypothesis states that there is an association between PopDensity and AIR.current.
+
+#### b.    Calculate the correlation coefficient between the two variables. Interpret. (2 points)
+```{r correlation}
+# Makes the log variable
+yale.df$log.AIR.current<-log(yale.df$AIR.current)
+yale.df$log.PopDensity<-log(yale.df$PopDensity)
+
+cor_AIR.current_PopDensity <- cor(yale.df$AIR.current, yale.df$PopDensity)
+cor_logAIR.current_PopDensity <- cor(yale.df$log.AIR.current, yale.df$PopDensity)
+cor_AIR.current_logPopDensity <- cor(yale.df$AIR.current, yale.df$log.PopDensity)
+cor_logAIR.current_logPopDensity <- cor(yale.df$log.AIR.current, yale.df$log.PopDensity)
+
+```
+
+```{r, echo=FALSE}
+glue('The correlation coefficient for Population Density vs. Air Quality is: {round(cor_AIR.current_PopDensity,8)}')
+glue('The correlation coefficient for Population Density vs. Logged Air Quality is: {round(cor_logAIR.current_PopDensity,8)}')
+glue('The correlation coefficient for Logged Population Density vs. Air Quality is: {round(cor_AIR.current_logPopDensity,8)}')
+glue('The correlation coefficient for Logged Population Density vs. Logged Air Quality is: {round(cor_logAIR.current_logPopDensity,8)}')
+```
+
+The correlation coefficients for are `r round(cor_AIR.current_PopDensity,8)`, `r round(cor_logAIR.current_PopDensity,8)`, `r round(cor_AIR.current_logPopDensity,8)` and `r round(cor_logAIR.current_logPopDensity,8)`, respectively. None of the correlation coefficients show a strong linear (or linear-log) relationship between the two variables. It is thus likely that the variables are not linearly correlated.
+
+#### c.	  Develop and discuss the scatterplots between the two variables. Does the relationship look linear or linear-log (or something else)? Should you transform one or both variables? Include your scatterplots (original, transformed) and discussion. (4 points)
+
+
+
+```{r pop.vs.air scatter.plot}
+ggplot(data=yale.df, aes(x = PopDensity, y = AIR.current)) +
+  geom_point(alpha=0.5, position = "jitter", color = "darkblue") +
+  labs(x="Population Density (persons per km2)", y="Air Quality (Index) in 2018", title = "Population Density vs. Air Quality (Index)", caption = "Data source: Yale Environmental Performance Index")
+```
+
+```{r pop.vs.log.air scatter.plot}
+ggplot(data=yale.df, aes(x = PopDensity, y = log.AIR.current)) +
+  geom_point(alpha=0.5, position = "jitter", color = "darkblue") +
+  labs(x="Population Density (persons per km2)", y="Logged Air Quality (Index) in 2018", title = "Population Density vs. Logged Air Quality (Index)", caption = "Data source: Yale Environmental Performance Index")
+```
+```{r log.pop.vs.air scatter.plot}
+ggplot(data=yale.df, aes(x = log.PopDensity, y = AIR.current)) +
+  geom_point(alpha=0.5, position = "jitter", color = "darkblue") +
+  labs(x="Logged Population Density (persons per km2)", y="Air Quality (Index) in 2018", title = "Logged Population Density vs. Air Quality (Index)", caption = "Data source: Yale Environmental Performance Index")
+```
+
+```{r log.pop.vs.log.air scatter.plot}
+ggplot(data=yale.df, aes(x = log.PopDensity, y = log.AIR.current)) +
+      geom_point(alpha=0.5, position = "jitter", color = "darkblue") +
+      labs(x="Logged Population Density (persons per km2)", y="Logged Air Quality (Index) in 2018", title = "Logged Population Density vs. Logged Air Quality (Index)", caption = "Data source: Yale Environmental Performance Index")
+```
+
+##### Discussion
+If a linear model is appropriate, the scatterplot of residuals should show random scatter. In the first scatter and second scatterplots (PopDensity, AIR.current; PopDensity, log(AIR.current)) and fourth scatterplot (log(PopDensity), log(AIR.current)), the residuals do not show random scatter. The third scatter plot (log(PopDensity), (AIR.current)), however, does show random scatter. The variables do not show a strong linear nor linear-log relationship as evidenced by the correlation coefficients. However, log transforming the PopDensity variable is the most approaprate for a linear model.
+
+
+#### d.    Perform a simple linear regression analysis on the two variables (after transformation, if needed). Make sure that your x and y variables are correct. Write the model equation and interpret the coefficient for the slope. (6 points) 
+
+```{r linearmodel}
+model.1 <- lm(AIR.current ~ log.PopDensity , data = yale.df)
+summary(model.1)
+```
+
+```{r log.pop.vs.log.air scatter.plot with line}
+ggplot(data=yale.df, aes(x = log.PopDensity, y = AIR.current)) +
+  geom_point(alpha=0.5, position = "jitter", color = "darkblue") +
+ stat_smooth(method=lm)+
+  labs(x="Logged Population Density (persons per km2)", y="Logged Air Quality (Index) in 2018", title = "Logged Population Density vs. Logged Air Quality (Index)", caption = "Data source: Yale Environmental Performance Index")
+```
+
+```{r}
+B1 <- (model.1$coefficients[2])/100
+B0 <- (model.1$coefficients[1])
+
+```
+
+##### Discussion
+y = `r B1` x + `r B0`
+
+A 1% increase in the explanatory variable, Population Densitry (persons per km2), decreases the response variable, Air Quality (index), by `r B1` units (the coefficient of the slope).
+
+#### e.    Interpret p-value of the slope coefficient in terms of hypothesis in a. (3 points)
+
+The population coefficient for the slope is not statistically significantly different than zero (p = `r summary(model.1)$coefficients[2,4]`). We fail to reject the null hypothesis. While the p-value  (and conslusions about the hypothesis) may vary depending on the model used, the linear-log model used here, log(PopDensity), AIR.current, is the is the most approaprate for a linear model. Thus, the p-value reported is the most appropriate.
+
+
+#### f.    Interpret the R2 value. (3 points)
+
+The r-squared is how well the regression model fits the observed data and generally, a higher r-squared indicates a better fit for the model. The r-squared value of 0.0001812 reveals that 0.01812% of the data fit the regression model. 
